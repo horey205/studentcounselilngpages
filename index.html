@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>학생 상담 관리 시스템</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --primary-light: #EEF2FF;
+            --secondary: #10B981;
+            --bg: #F9FAFB;
+            --text-main: #111827;
+            --text-sub: #6B7280;
+            --white: #FFFFFF;
+            --border: #E5E7EB;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            padding-bottom: 80px;
+        }
+
+        header {
+            background-color: var(--white);
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        .search-container {
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 14px 20px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background-color: var(--white);
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .search-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-light);
+        }
+
+        .student-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .student-card {
+            background-color: var(--white);
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .student-card:active {
+            transform: scale(0.98);
+        }
+
+        .student-info .name {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .student-info .id {
+            color: var(--text-sub);
+            font-size: 0.9rem;
+        }
+
+        .student-grade {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background-color: var(--primary-light);
+            color: var(--primary);
+            font-weight: 600;
+            margin-top: 4px;
+            display: inline-block;
+        }
+
+        .filter-container {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .filter-btn {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background-color: var(--white);
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .filter-btn.active {
+            background-color: var(--primary);
+            color: var(--white);
+            border-color: var(--primary);
+        }
+
+        /* Modal / Detail View */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--white);
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            background-color: var(--white);
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            margin-right: 12px;
+            cursor: pointer;
+        }
+
+        .modal-section {
+            padding: 20px;
+        }
+
+        .section-title {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-item {
+            background-color: var(--bg);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .history-date {
+            font-size: 0.8rem;
+            color: var(--text-sub);
+            margin-bottom: 4px;
+        }
+
+        .history-type {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 4px;
+        }
+
+        .history-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .history-content {
+            font-size: 0.95rem;
+            color: #374151;
+            white-space: pre-wrap;
+        }
+
+        /* Form */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .form-input,
+        .form-select,
+        .form-textarea {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            font-size: 1rem;
+            font-family: inherit;
+        }
+
+        .form-textarea {
+            height: 120px;
+            resize: none;
+        }
+
+        .btn {
+            padding: 14px;
+            border-radius: 8px;
+            border: none;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: var(--white);
+        }
+
+        .btn-export {
+            background-color: var(--secondary);
+            color: var(--white);
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: calc(100% - 32px);
+            max-width: 568px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .empty-history {
+            text-align: center;
+            color: var(--text-sub);
+            padding: 20px;
+            font-size: 0.9rem;
+        }
+
+        /* Login Screen */
+        #login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--white);
+            z-index: 999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+        }
+
+        .login-box {
+            width: 100%;
+            max-width: 320px;
+        }
+
+        .login-logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--primary);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        #main-app {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="login-overlay">
+        <div class="login-box">
+            <div class="login-logo">학생상담 관리 로그인</div>
+            <div class="form-group">
+                <label class="form-label">아이디</label>
+                <input type="text" id="login-id" class="form-input" placeholder="admin">
+            </div>
+            <div class="form-group">
+                <label class="form-label">비밀번호</label>
+                <input type="password" id="login-pw" class="form-input" placeholder="••••••••">
+            </div>
+            <button class="btn btn-primary" onclick="checkLogin()">로그인</button>
+        </div>
+    </div>
+
+    <div id="main-app">
+        <header>
+            <h1>학생 상담 관리</h1>
+        </header>
+
+        <div class="container" id="main-view">
+            <div class="search-container">
+                <input type="text" id="student-search" class="search-input" placeholder="이름 또는 학번 검색...">
+            </div>
+            <div class="filter-container">
+                <button class="filter-btn active" data-grade="all">전체</button>
+                <button class="filter-btn" data-grade="1학년">1학년</button>
+                <button class="filter-btn" data-grade="2학년">2학년</button>
+            </div>
+            <div class="student-list" id="student-list">
+                <!-- Students injected here -->
+            </div>
+        </div>
+
+        <!-- Student Detail Modal -->
+        <div class="modal" id="student-modal">
+            <div class="modal-header">
+                <button class="back-btn" id="modal-close">&larr;</button>
+                <div id="modal-student-info">
+                    <span class="name" id="selected-name" style="font-weight:700; font-size:1.1rem">학생명</span>
+                    <span class="id" id="selected-id"
+                        style="color:var(--text-sub); font-size:0.9rem; margin-left:8px">2026105001</span>
+                </div>
+            </div>
+
+            <div class="modal-section" style="border-bottom: 8px solid var(--bg);">
+                <div class="section-title">상담 내역</div>
+                <div id="history-container">
+                    <!-- History injected here -->
+                </div>
+            </div>
+
+            <div class="modal-section">
+                <div class="section-title">새 상담 등록</div>
+                <form id="counsel-form">
+                    <div class="form-group">
+                        <label class="form-label">상담 구분</label>
+                        <select class="form-select" id="counsel-type" required>
+                            <option value="지도교수 상담">상담결과등록(지도교수 상담)</option>
+                            <option value="신입생상담">상담결과등록(신입생상담)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">상담 제목</label>
+                        <input type="text" class="form-input" id="counsel-title" placeholder="제목을 입력하세요" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">상담 내용</label>
+                        <textarea class="form-textarea" id="counsel-result" placeholder="상담 결과를 상세히 입력하세요"
+                            required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">저장하기</button>
+                </form>
+            </div>
+        </div>
+
+        <button class="btn btn-export" id="export-btn">상담 데이터 내보내기 (.json)</button>
+    </div> <!-- Close main-app -->
+
+    <script src="students.js"></script>
+    <script>
+        // Data from students.js (the STUDENT_DATA constant)
+        let students = [];
+        let records = JSON.parse(localStorage.getItem('counseling_records') || '{}');
+        let selectedStudent = null;
+        let currentFilter = 'all';
+
+        // Login Check
+        function checkLogin() {
+            const id = document.getElementById('login-id').value;
+            const pw = document.getElementById('login-pw').value;
+
+            if (id === 'admin' && pw === 'Lee018215#@!') {
+                document.getElementById('login-overlay').style.display = 'none';
+                document.getElementById('main-app').style.display = 'block';
+                sessionStorage.setItem('is_auth', 'true');
+                init();
+            } else {
+                alert('아이디 또는 비밀번호가 올바르지 않습니다.');
+            }
+        }
+
+        async function init() {
+            // Check session auth on load
+            if (sessionStorage.getItem('is_auth') === 'true') {
+                document.getElementById('login-overlay').style.display = 'none';
+                document.getElementById('main-app').style.display = 'block';
+            } else {
+                return; // Wait for login
+            }
+
+            try {
+                // If STUDENT_DATA is loaded from students.js, use it
+                if (typeof STUDENT_DATA !== 'undefined') {
+                    students = STUDENT_DATA;
+                } else {
+                    // Fallback to fetch if script didn't load (e.g. server-side)
+                    const response = await fetch('students.json');
+                    students = await response.json();
+                }
+                renderStudents(students);
+            } catch (err) {
+                console.error("Failed to load students:", err);
+                alert("학생 명단을 불러오지 못했습니다. students.js 또는 students.json 파일이 있는지 확인해주세요.");
+            }
+        }
+
+        function renderStudents(list) {
+            const container = document.getElementById('student-list');
+            container.innerHTML = list.map(s => `
+                <div class="student-card" onclick="openModal('${s.id}')">
+                    <div class="student-info">
+                        <div class="name">${s.name}</div>
+                        <div class="id">${s.id}</div>
+                        <div class="student-grade">${s.grade}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openModal(sid) {
+            selectedStudent = students.find(s => s.id === sid);
+            if (!selectedStudent) return;
+
+            document.getElementById('selected-name').textContent = selectedStudent.name;
+            document.getElementById('selected-id').textContent = selectedStudent.id;
+
+            renderHistory(sid);
+
+            document.getElementById('student-modal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+
+            // Reset form
+            document.getElementById('counsel-form').reset();
+        }
+
+        function closeModal() {
+            document.getElementById('student-modal').classList.remove('active');
+            document.body.style.overflow = '';
+            selectedStudent = null;
+        }
+
+        function renderHistory(sid) {
+            const container = document.getElementById('history-container');
+            const studentRecords = records[sid] || [];
+
+            if (studentRecords.length === 0) {
+                container.innerHTML = '<div class="empty-history">상담 내역이 없습니다.</div>';
+                return;
+            }
+
+            container.innerHTML = studentRecords.map(r => `
+                <div class="history-item">
+                    <div class="history-date">${r.date}</div>
+                    <div class="history-type">${r.type}</div>
+                    <div class="history-title">${r.title}</div>
+                    <div class="history-content">${r.content}</div>
+                </div>
+            `).reverse().join(''); // Show latest first
+        }
+
+        // Search and Filter logic
+        function applyFilterAndSearch() {
+            const query = document.getElementById('student-search').value.toLowerCase();
+            const filtered = students.filter(s => {
+                const matchesQuery = s.name.toLowerCase().includes(query) || s.id.includes(query);
+                const matchesGrade = currentFilter === 'all' || s.grade === currentFilter;
+                return matchesQuery && matchesGrade;
+            });
+            renderStudents(filtered);
+        }
+
+        document.getElementById('student-search').addEventListener('input', applyFilterAndSearch);
+
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                currentFilter = e.target.getAttribute('data-grade');
+                applyFilterAndSearch();
+            });
+        });
+
+        document.getElementById('modal-close').addEventListener('click', closeModal);
+
+        // Form submission
+        document.getElementById('counsel-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (!selectedStudent) return;
+
+            const newRecord = {
+                date: new Date().toLocaleString('ko-KR'),
+                type: document.getElementById('counsel-type').value,
+                title: document.getElementById('counsel-title').value,
+                content: document.getElementById('counsel-result').value,
+                timestamp: Date.now()
+            };
+
+            if (!records[selectedStudent.id]) {
+                records[selectedStudent.id] = [];
+            }
+            records[selectedStudent.id].push(newRecord);
+
+            // Save to LocalStorage
+            localStorage.setItem('counseling_records', JSON.stringify(records));
+
+            renderHistory(selectedStudent.id);
+            alert("저장되었습니다.");
+
+            // Keep modal open or close? Often easier to stay.
+            document.getElementById('counsel-form').reset();
+        });
+
+        // Export button
+        document.getElementById('export-btn').addEventListener('click', () => {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(records, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "counseling_records.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        });
+
+        init();
+    </script>
+</body>
+
+</html>
