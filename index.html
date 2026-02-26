@@ -426,13 +426,9 @@
         }
 
         async function init() {
-            // Check session auth on load
-            if (sessionStorage.getItem('is_auth') === 'true') {
-                document.getElementById('login-overlay').style.display = 'none';
-                document.getElementById('main-app').style.display = 'block';
-            } else {
-                return; // Wait for login
-            }
+            // Always require login on refresh (don't check session)
+            document.getElementById('login-overlay').style.display = 'flex';
+            document.getElementById('main-app').style.display = 'none';
 
             try {
                 // If STUDENT_DATA is loaded from students.js, use it
