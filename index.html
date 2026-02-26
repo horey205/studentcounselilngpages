@@ -284,6 +284,55 @@
             font-size: 0.9rem;
         }
 
+        /* Sync Control Panel */
+        .sync-panel {
+            background-color: #f3f4f6;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sync-status {
+            font-size: 0.85rem;
+            color: var(--text-sub);
+        }
+
+        .btn-sync {
+            background-color: var(--primary);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        /* Settings Modal */
+        .settings-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 500;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .settings-box {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 360px;
+        }
+
         /* Login Screen */
         #login-overlay {
             position: fixed;
@@ -341,6 +390,11 @@
         </header>
 
         <div class="container" id="main-view">
+            <div class="sync-panel">
+                <div class="sync-status" id="sync-status">오프라인 모드</div>
+                <button class="btn-sync" onclick="toggleSettings()">동기화 설정</button>
+            </div>
+            
             <div class="search-container">
                 <input type="text" id="student-search" class="search-input" placeholder="이름 또는 학번 검색...">
             </div>
@@ -400,7 +454,29 @@
         </div>
 
         <button class="btn btn-export" id="export-btn">상담 데이터 내보내기 (.json)</button>
+        <button class="btn btn-primary" id="cloud-sync-btn" style="background-color: #6366f1; margin-bottom: 20px; display: none;" onclick="pushToGithub()">서버로 데이터 밀어넣기 (Push)</button>
     </div> <!-- Close main-app -->
+
+    <div class="settings-overlay" id="settings-overlay">
+        <div class="settings-box">
+            <h2 style="margin-bottom: 16px;">동기화 설정</h2>
+            <p style="font-size: 0.85rem; color: var(--text-sub); margin-bottom: 20px;">
+                여러 기기에서 데이터를 공유하려면 GitHub 토큰이 필요합니다.
+            </p>
+            <div class="form-group">
+                <label class="form-label">GitHub 토큰</label>
+                <input type="password" id="gh-token" class="form-input" placeholder="ghp_...">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Repository 정보</label>
+                <input type="text" id="gh-repo" class="form-input" value="horey205/studentcounselilng" readonly>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn btn-primary" style="flex: 1;" onclick="saveSettings()">저장 및 불러오기</button>
+                <button class="btn" style="flex: 1; border: 1px solid var(--border);" onclick="toggleSettings()">닫기</button>
+            </div>
+        </div>
+    </div>
 
     <script src="students.js"></script>
     <script>
@@ -409,6 +485,108 @@
         let records = JSON.parse(localStorage.getItem('counseling_records') || '{}');
         let selectedStudent = null;
         let currentFilter = 'all';
+
+        // GitHub Sync Variables
+        let GH_TOKEN = localStorage.getItem('gh_token');
+        const GH_REPO = "horey205/studentcounselilng";
+        const GH_PATH = "counseling_records.json";
+
+        function toggleSettings() {
+            const overlay = document.getElementById('settings-overlay');
+            overlay.style.display = overlay.style.display === 'flex' ? 'none' : 'flex';
+            if (GH_TOKEN) document.getElementById('gh-token').value = GH_TOKEN;
+        }
+
+        function saveSettings() {
+            GH_TOKEN = document.getElementById('gh-token').value.trim();
+            localStorage.setItem('gh_token', GH_TOKEN);
+            alert("설정이 저장되었습니다. 서버에서 데이터를 불러옵니다.");
+            toggleSettings();
+            pullFromGithub();
+        }
+
+        async function pullFromGithub() {
+            if (!GH_TOKEN) return;
+            
+            document.getElementById('sync-status').textContent = "불러오는 중...";
+            try {
+                // We use the raw file URL to get the latest data (from the Pages repo or Main)
+                const response = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}`, {
+                    headers: { 'Authorization': `token ${GH_TOKEN}` }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const content = decodeURIComponent(escape(atob(data.content)));
+                    const cloudRecords = JSON.parse(content);
+                    
+                    // Merge cloud data with local data
+                    records = { ...records, ...cloudRecords };
+                    localStorage.setItem('counseling_records', JSON.stringify(records));
+                    document.getElementById('sync-status').textContent = "구름 모드 (동기화됨)";
+                    document.getElementById('cloud-sync-btn').style.display = 'block';
+                    alert("서버 데이터를 성공적으로 불러와 합쳤습니다.");
+                } else {
+                    document.getElementById('sync-status').textContent = "인증 오류";
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('sync-status').textContent = "연결 실패";
+            }
+        }
+
+        async function pushToGithub() {
+            if (!GH_TOKEN) {
+                alert("동기화 설정을 먼저 해주세요.");
+                return;
+            }
+
+            const confirmSync = confirm("현재 기기의 데이터를 서버로 업로드하시겠습니까? (서버의 내용이 덮어씌워집니다)");
+            if (!confirmSync) return;
+
+            document.getElementById('sync-status').textContent = "업로드 중...";
+            try {
+                // 1. Get the current file SHA (needed for update)
+                const getFile = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}`, {
+                    headers: { 'Authorization': `token ${GH_TOKEN}` }
+                });
+                const fileData = await getFile.json();
+                const sha = fileData.sha;
+
+                // 2. Update the file
+                const content = b64EncodeUnicode(JSON.stringify(records, null, 2));
+                const response = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${GH_TOKEN}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: "Update counseling records from WebApp",
+                        content: content,
+                        sha: sha
+                    })
+                });
+
+                if (response.ok) {
+                    document.getElementById('sync-status').textContent = "업로드 완료";
+                    alert("서버에 데이터가 안전하게 저장되었습니다.");
+                } else {
+                    alert("업로드 실패: " + response.statusText);
+                    document.getElementById('sync-status').textContent = "업로드 실패";
+                }
+            } catch (err) {
+                console.error(err);
+                alert("오류가 발생했습니다.");
+            }
+        }
+
+        // Base64 helper for Unicode
+        function b64EncodeUnicode(str) {
+            return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+                return String.fromCharCode('0x' + p1);
+            }));
+        }
 
         // Login Check
         function checkLogin() {
@@ -420,6 +598,7 @@
                 document.getElementById('main-app').style.display = 'block';
                 sessionStorage.setItem('is_auth', 'true');
                 init();
+                if (GH_TOKEN) pullFromGithub(); // Auto sync on login
             } else {
                 alert('아이디 또는 비밀번호가 올바르지 않습니다.');
             }
