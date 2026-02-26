@@ -530,10 +530,13 @@
             }
         }
 
-        async function pushToGithub() {
+        async function pushToGithub(silent = false) {
             if (!GH_TOKEN) return;
-            if (!confirm("현 기기 데이터를 서버로 업로드하시겠습니까?")) return;
-            document.getElementById('sync-status').textContent = "업로드 중...";
+            if (!silent && !confirm("현 기기 데이터를 서버로 업로드하시겠습니까?")) return;
+
+            const statusEl = document.getElementById('sync-status');
+            statusEl.textContent = "서버 저장 중...";
+
             try {
                 const getFile = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}`, {
                     headers: { 'Authorization': `token ${GH_TOKEN}` }
@@ -546,13 +549,15 @@
                     body: JSON.stringify({ message: "Update records", content: content, sha: fileData.sha })
                 });
                 if (response.ok) {
-                    alert("서버 저장 완료");
-                    document.getElementById('sync-status').textContent = "동기화됨 (Cloud)";
+                    if (!silent) alert("서버 저장 완료");
+                    statusEl.textContent = "동기화됨 (Cloud)";
                 } else {
-                    alert("업로드 실패");
+                    if (!silent) alert("업로드 실패");
+                    statusEl.textContent = "동기화 오류";
                 }
             } catch (err) {
-                alert("오류 발생");
+                if (!silent) alert("오류 발생");
+                statusEl.textContent = "연결 오류";
             }
         }
 
@@ -600,13 +605,23 @@
                 return;
             }
             container.innerHTML = studentRecords.map(r => `
-                <div style="background:#f9fafb;padding:12px;border-radius:8px;margin-bottom:10px;">
+                <div style="background:#f9fafb;padding:12px;border-radius:8px;margin-bottom:10px;position:relative;">
                     <div style="font-size:0.8rem;color:#6b7280;">${r.date}</div>
                     <div style="font-weight:600;color:#4f46e5;">${r.type}</div>
                     <div style="font-weight:600;">${r.title}</div>
                     <div style="font-size:0.95rem;white-space:pre-wrap;">${r.content}</div>
+                    <button onclick="deleteRecord('${sid}', ${r.id})" style="position:absolute;top:10px;right:10px;background:none;border:none;color:#ef4444;font-size:1.2rem;padding:5px;cursor:pointer;">&times;</button>
                 </div>
             `).reverse().join('');
+        }
+
+        async function deleteRecord(sid, rid) {
+            if (!confirm("이 상담 기록을 삭제하시겠습니까? (서버에서도 자동 삭제됩니다)")) return;
+
+            records[sid] = records[sid].filter(r => r.id !== rid);
+            localStorage.setItem('counseling_records', JSON.stringify(records));
+            renderHistory(sid);
+            if (GH_TOKEN) await pushToGithub(true); // Auto sync delete
         }
 
         function applyFilterAndSearch() {
@@ -631,9 +646,10 @@
 
         document.getElementById('modal-close').addEventListener('click', closeModal);
 
-        document.getElementById('counsel-form').addEventListener('submit', (e) => {
+        document.getElementById('counsel-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const newRecord = {
+                id: Date.now(), // Unique ID for deletion
                 date: new Date().toLocaleString('ko-KR'),
                 type: document.getElementById('counsel-type').value,
                 title: document.getElementById('counsel-title').value,
@@ -643,7 +659,15 @@
             records[selectedStudent.id].push(newRecord);
             localStorage.setItem('counseling_records', JSON.stringify(records));
             renderHistory(selectedStudent.id);
-            alert("저장되었습니다.");
+
+            // Auto sync to Cloud
+            if (GH_TOKEN) {
+                await pushToGithub(true); // silent sync
+            }
+
+            alert("저장 및 클라우드 동기화 완료");
+            document.getElementById('counsel-form').reset();
+            document.getElementById('counsel-title').value = "학생상담";
         });
 
         document.getElementById('export-btn').addEventListener('click', () => {
