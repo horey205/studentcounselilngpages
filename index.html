@@ -141,55 +141,6 @@
             border-color: var(--primary);
         }
 
-        /* Sync Control Panel */
-        .sync-panel {
-            background-color: #f3f4f6;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .sync-status {
-            font-size: 0.85rem;
-            color: var(--text-sub);
-        }
-
-        .btn-sync-settings {
-            background-color: var(--text-sub);
-            color: white;
-            padding: 6px 12px;
-            border-radius: 6px;
-            border: none;
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-
-        /* Settings Modal */
-        .settings-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-            display: none;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-
-        .settings-box {
-            background: white;
-            padding: 24px;
-            border-radius: 16px;
-            width: 100%;
-            max-width: 360px;
-        }
-
         /* Modal / Detail View */
         .modal {
             position: fixed;
@@ -244,6 +195,30 @@
             padding: 12px;
             border-radius: 8px;
             margin-bottom: 10px;
+        }
+
+        .history-date {
+            font-size: 0.8rem;
+            color: var(--text-sub);
+            margin-bottom: 4px;
+        }
+
+        .history-type {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 4px;
+        }
+
+        .history-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .history-content {
+            font-size: 0.95rem;
+            color: #374151;
+            white-space: pre-wrap;
         }
 
         /* Form */
@@ -302,6 +277,13 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
+        .empty-history {
+            text-align: center;
+            color: var(--text-sub);
+            padding: 20px;
+            font-size: 0.9rem;
+        }
+
         /* Login Screen */
         #login-overlay {
             position: fixed;
@@ -335,6 +317,10 @@
             display: none;
         }
     </style>
+    <!-- Firebase App (the core Firebase SDK) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <!-- Firebase Firestore -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 </head>
 
 <body>
@@ -359,11 +345,6 @@
         </header>
 
         <div class="container" id="main-view">
-            <div class="sync-panel">
-                <div class="sync-status" id="sync-status">오프라인 모드</div>
-                <button class="btn-sync-settings" onclick="toggleSettings()">동기화 설정</button>
-            </div>
-
             <div class="search-container">
                 <input type="text" id="student-search" class="search-input" placeholder="이름 또는 학번 검색...">
             </div>
@@ -423,148 +404,82 @@
         </div>
 
         <button class="btn btn-export" id="export-btn">상담 데이터 내보내기 (.json)</button>
-        <button class="btn btn-primary" id="cloud-sync-btn"
-            style="background-color: #6366f1; margin-bottom: 100px; display: none;" onclick="pushToGithub()">서버로 데이터
-            밀어넣기 (Push)</button>
     </div> <!-- Close main-app -->
-
-    <div class="settings-overlay" id="settings-overlay">
-        <div class="settings-box">
-            <h2 style="margin-bottom: 16px;">동기화 설정</h2>
-            <p style="font-size: 0.85rem; color: var(--text-sub); margin-bottom: 20px;">
-                GitHub 토큰을 입력하면 서버와 데이터를 공유합니다.
-            </p>
-            <div class="form-group">
-                <label class="form-label">GitHub 토큰</label>
-                <input type="password" id="gh-token" class="form-input" placeholder="ghp_...">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Repository 정보</label>
-                <input type="text" id="gh-repo" class="form-input" value="horey205/studentcounselilng" readonly>
-            </div>
-            <div style="display: flex; gap: 8px;">
-                <button class="btn btn-primary" style="flex: 1;" onclick="saveSettings()">저장 및 불러오기</button>
-                <button class="btn" style="flex: 1; border: 1px solid var(--border);"
-                    onclick="toggleSettings()">닫기</button>
-            </div>
-        </div>
-    </div>
 
     <script src="students.js"></script>
     <script>
+        // Data from students.js (the STUDENT_DATA constant)
         let students = [];
         let records = JSON.parse(localStorage.getItem('counseling_records') || '{}');
         let selectedStudent = null;
         let currentFilter = 'all';
 
-        let GH_TOKEN = localStorage.getItem('gh_token');
-        const GH_REPO = "horey205/studentcounselilng";
-        const GH_PATH = "counseling_records.json";
+        // Firebase configuration (Replace with your actual settings from Firebase Console)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDIcTZCELaQRfWvkv-8mrng5tAQ8i9K5m8",
+            authDomain: "student-counseling-1627c.firebaseapp.com",
+            projectId: "student-counseling-1627c",
+            storageBucket: "student-counseling-1627c.firebasestorage.app",
+            messagingSenderId: "443972858798",
+            appId: "1:443972858798:web:ca492fd0f1e661172f4e3f"
+        };
 
+        let db = null;
+        let useFirebase = false;
+
+        // Auto-detect if Firebase is configured
+        if (firebaseConfig.projectId && firebaseConfig.projectId !== "YOUR_PROJECT_ID") {
+            try {
+                firebase.initializeApp(firebaseConfig);
+                db = firebase.firestore();
+                useFirebase = true;
+                console.log("Firebase Firestore initialized.");
+            } catch (e) {
+                console.error("Firebase init failed, falling back to LocalStorage:", e);
+            }
+        } else {
+            console.warn("Firebase not configured. Using LocalStorage fallback.");
+        }
+
+        // Login Check
         function checkLogin() {
             const id = document.getElementById('login-id').value;
             const pw = document.getElementById('login-pw').value;
 
             if (id === 'user' && pw === 'user2685') {
+                document.getElementById('login-overlay').style.display = 'none';
+                document.getElementById('main-app').style.display = 'block';
                 sessionStorage.setItem('is_auth', 'true');
-                showApp();
-                if (GH_TOKEN) pullFromGithub();
             } else {
                 alert('아이디 또는 비밀번호가 올바르지 않습니다.');
             }
         }
 
-        function showApp() {
-            document.getElementById('login-overlay').style.display = 'none';
-            document.getElementById('main-app').style.display = 'block';
-            if (students.length === 0) loadStudents();
-        }
+        async function init() {
+            // Check session authentication status
+            const isAuth = sessionStorage.getItem('is_auth') === 'true';
+            if (isAuth) {
+                document.getElementById('login-overlay').style.display = 'none';
+                document.getElementById('main-app').style.display = 'block';
+            } else {
+                document.getElementById('login-overlay').style.display = 'flex';
+                document.getElementById('main-app').style.display = 'none';
+            }
 
-        async function loadStudents() {
             try {
+                // If STUDENT_DATA is loaded from students.js, use it
                 if (typeof STUDENT_DATA !== 'undefined') {
                     students = STUDENT_DATA;
                 } else {
+                    // Fallback to fetch if script didn't load (e.g. server-side)
                     const response = await fetch('students.json');
                     students = await response.json();
                 }
                 renderStudents(students);
             } catch (err) {
-                console.error(err);
-                alert("학생 명단 로딩 실패");
+                console.error("Failed to load students:", err);
+                alert("학생 명단을 불러오지 못했습니다. students.js 또는 students.json 파일이 있는지 확인해주세요.");
             }
-        }
-
-        function toggleSettings() {
-            const overlay = document.getElementById('settings-overlay');
-            overlay.style.display = overlay.style.display === 'flex' ? 'none' : 'flex';
-            if (GH_TOKEN) document.getElementById('gh-token').value = GH_TOKEN;
-        }
-
-        function saveSettings() {
-            GH_TOKEN = document.getElementById('gh-token').value.trim();
-            localStorage.setItem('gh_token', GH_TOKEN);
-            toggleSettings();
-            pullFromGithub();
-        }
-
-        async function pullFromGithub() {
-            if (!GH_TOKEN) return;
-            document.getElementById('sync-status').textContent = "불러오는 중...";
-            try {
-                const response = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}`, {
-                    headers: { 'Authorization': `token ${GH_TOKEN}` }
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    const content = decodeURIComponent(escape(atob(data.content)));
-                    records = JSON.parse(content);
-                    localStorage.setItem('counseling_records', JSON.stringify(records));
-                    document.getElementById('sync-status').textContent = "동기화됨 (Cloud)";
-                    document.getElementById('cloud-sync-btn').style.display = 'block';
-                } else {
-                    document.getElementById('sync-status').textContent = "인증 오류";
-                }
-            } catch (err) {
-                document.getElementById('sync-status').textContent = "연결 실패";
-            }
-        }
-
-        async function pushToGithub(silent = false) {
-            if (!GH_TOKEN) return;
-            if (!silent && !confirm("현 기기 데이터를 서버로 업로드하시겠습니까?")) return;
-
-            const statusEl = document.getElementById('sync-status');
-            statusEl.textContent = "서버 저장 중...";
-
-            try {
-                const getFile = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}`, {
-                    headers: { 'Authorization': `token ${GH_TOKEN}` }
-                });
-                const fileData = await getFile.json();
-                const content = b64EncodeUnicode(JSON.stringify(records, null, 2));
-                const response = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}`, {
-                    method: 'PUT',
-                    headers: { 'Authorization': `token ${GH_TOKEN}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: "Update records", content: content, sha: fileData.sha })
-                });
-                if (response.ok) {
-                    if (!silent) alert("서버 저장 완료");
-                    statusEl.textContent = "동기화됨 (Cloud)";
-                } else {
-                    if (!silent) alert("업로드 실패");
-                    statusEl.textContent = "동기화 오류";
-                }
-            } catch (err) {
-                if (!silent) alert("오류 발생");
-                statusEl.textContent = "연결 오류";
-            }
-        }
-
-        function b64EncodeUnicode(str) {
-            return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function (match, p1) {
-                return String.fromCharCode('0x' + p1);
-            }));
         }
 
         function renderStudents(list) {
@@ -583,47 +498,74 @@
         function openModal(sid) {
             selectedStudent = students.find(s => s.id === sid);
             if (!selectedStudent) return;
+
             document.getElementById('selected-name').textContent = selectedStudent.name;
             document.getElementById('selected-id').textContent = selectedStudent.id;
+
             renderHistory(sid);
+
             document.getElementById('student-modal').classList.add('active');
             document.body.style.overflow = 'hidden';
+
+            // Reset form
             document.getElementById('counsel-form').reset();
-            document.getElementById('counsel-title').value = "학생상담";
         }
 
         function closeModal() {
             document.getElementById('student-modal').classList.remove('active');
             document.body.style.overflow = '';
+            selectedStudent = null;
         }
 
-        function renderHistory(sid) {
+        async function renderHistory(sid) {
             const container = document.getElementById('history-container');
-            const studentRecords = records[sid] || [];
+            container.innerHTML = '<div class="empty-history">불러오는 중...</div>';
+
+            let studentRecords = [];
+
+            if (useFirebase) {
+                try {
+                    const snapshot = await db.collection("counseling_records")
+                        .where("studentId", "==", sid)
+                        .orderBy("timestamp", "desc")
+                        .get();
+                    
+                    snapshot.forEach(doc => {
+                        studentRecords.push(doc.data());
+                    });
+                } catch (e) {
+                    console.error("Failed to fetch from Firebase, falling back to LocalStorage:", e);
+                    studentRecords = records[sid] || [];
+                }
+            } else {
+                studentRecords = records[sid] || [];
+            }
+
             if (studentRecords.length === 0) {
-                container.innerHTML = '<div style="text-align:center;color:#6b7280;padding:20px;">내역 없음</div>';
+                container.innerHTML = '<div class="empty-history">상담 내역이 없습니다.</div>';
                 return;
             }
-            container.innerHTML = studentRecords.map(r => `
-                <div style="background:#f9fafb;padding:12px;border-radius:8px;margin-bottom:10px;position:relative;">
-                    <div style="font-size:0.8rem;color:#6b7280;">${r.date}</div>
-                    <div style="font-weight:600;color:#4f46e5;">${r.type}</div>
-                    <div style="font-weight:600;">${r.title}</div>
-                    <div style="font-size:0.95rem;white-space:pre-wrap;">${r.content}</div>
-                    <button onclick="deleteRecord('${sid}', ${r.id})" style="position:absolute;top:10px;right:10px;background:none;border:none;color:#ef4444;font-size:1.2rem;padding:5px;cursor:pointer;">&times;</button>
+
+            // Firebase query is already ordered by timestamp desc.
+            // LocalStorage is ordered oldest first, so we reverse it.
+            const sortedRecords = useFirebase ? studentRecords : [...studentRecords].reverse();
+
+            container.innerHTML = sortedRecords.map(r => `
+                <div class="history-item">
+                    <div class="history-date">${r.date}</div>
+                    <div class="history-type">${r.type}</div>
+                    <div class="history-title">${r.title}</div>
+                    <div class="history-content">${r.content}</div>
+                    ${useFirebase ? `
+                        <div style="font-size:0.75rem; text-align:right; margin-top:6px; color:${r.uploaded ? 'var(--secondary)' : 'var(--text-sub)'}">
+                            ${r.uploaded ? '● 포털 등록완료' : '○ 포털 등록대기'}
+                        </div>
+                    ` : ''}
                 </div>
-            `).reverse().join('');
+            `).join('');
         }
 
-        async function deleteRecord(sid, rid) {
-            if (!confirm("이 상담 기록을 삭제하시겠습니까? (서버에서도 자동 삭제됩니다)")) return;
-
-            records[sid] = records[sid].filter(r => r.id !== rid);
-            localStorage.setItem('counseling_records', JSON.stringify(records));
-            renderHistory(sid);
-            if (GH_TOKEN) await pushToGithub(true); // Auto sync delete
-        }
-
+        // Search and Filter logic
         function applyFilterAndSearch() {
             const query = document.getElementById('student-search').value.toLowerCase();
             const filtered = students.filter(s => {
@@ -635,6 +577,7 @@
         }
 
         document.getElementById('student-search').addEventListener('input', applyFilterAndSearch);
+
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -646,41 +589,81 @@
 
         document.getElementById('modal-close').addEventListener('click', closeModal);
 
+        // Form submission
         document.getElementById('counsel-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (!selectedStudent) return;
+
             const newRecord = {
-                id: Date.now(), // Unique ID for deletion
+                studentId: selectedStudent.id,
+                studentName: selectedStudent.name,
                 date: new Date().toLocaleString('ko-KR'),
                 type: document.getElementById('counsel-type').value,
                 title: document.getElementById('counsel-title').value,
-                content: document.getElementById('counsel-result').value
+                content: document.getElementById('counsel-result').value,
+                timestamp: Date.now(),
+                uploaded: false
             };
-            if (!records[selectedStudent.id]) records[selectedStudent.id] = [];
-            records[selectedStudent.id].push(newRecord);
-            localStorage.setItem('counseling_records', JSON.stringify(records));
-            renderHistory(selectedStudent.id);
 
-            // Auto sync to Cloud
-            if (GH_TOKEN) {
-                await pushToGithub(true); // silent sync
+            if (useFirebase) {
+                try {
+                    await db.collection("counseling_records").add(newRecord);
+                    alert("성공적으로 Firebase에 저장되었습니다.");
+                } catch (e) {
+                    console.error("Firebase save failed:", e);
+                    alert("Firebase 저장 실패! LocalStorage에 임시 저장합니다.");
+                    saveToLocalStorage(selectedStudent.id, newRecord);
+                }
+            } else {
+                saveToLocalStorage(selectedStudent.id, newRecord);
+                alert("저장되었습니다. (LocalStorage)");
             }
 
-            alert("저장 및 클라우드 동기화 완료");
+            renderHistory(selectedStudent.id);
             document.getElementById('counsel-form').reset();
-            document.getElementById('counsel-title').value = "학생상담";
         });
 
-        document.getElementById('export-btn').addEventListener('click', () => {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(records, null, 2));
-            const dl = document.createElement('a');
-            dl.setAttribute("href", dataStr);
-            dl.setAttribute("download", "counseling_records.json");
-            dl.click();
+        function saveToLocalStorage(sid, record) {
+            if (!records[sid]) {
+                records[sid] = [];
+            }
+            records[sid].push(record);
+            localStorage.setItem('counseling_records', JSON.stringify(records));
+        }
+
+        // Export button
+        document.getElementById('export-btn').addEventListener('click', async () => {
+            let dataToExport = records;
+            if (useFirebase) {
+                if (confirm("Firebase에서 모든 상담 데이터를 다운로드하시겠습니까?")) {
+                    try {
+                        const snapshot = await db.collection("counseling_records").get();
+                        const firebaseRecords = {};
+                        snapshot.forEach(doc => {
+                            const data = doc.data();
+                            const sid = data.studentId;
+                            if (!firebaseRecords[sid]) {
+                                firebaseRecords[sid] = [];
+                            }
+                            firebaseRecords[sid].push(data);
+                        });
+                        dataToExport = firebaseRecords;
+                    } catch (e) {
+                        alert("Firebase 데이터 로드 실패. LocalStorage 데이터를 다운로드합니다.");
+                    }
+                }
+            }
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "counseling_records.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
         });
 
-        // Start by requiring login
-        document.getElementById('login-overlay').style.display = 'flex';
-        document.getElementById('main-app').style.display = 'none';
+        init();
     </script>
 </body>
 
