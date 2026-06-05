@@ -441,6 +441,15 @@
             console.warn("Firebase not configured. Using LocalStorage fallback.");
         }
 
+        // Hide export button if using Firebase to clean up UI
+        window.addEventListener('DOMContentLoaded', () => {
+            if (useFirebase) {
+                const exportBtn = document.getElementById('export-btn');
+                if (exportBtn) exportBtn.style.display = 'none';
+                document.body.style.paddingBottom = '20px';
+            }
+        });
+
         // Login Check
         function checkLogin() {
             const id = document.getElementById('login-id').value;
