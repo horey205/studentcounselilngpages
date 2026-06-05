@@ -531,7 +531,9 @@
                         .get();
                     
                     snapshot.forEach(doc => {
-                        studentRecords.push(doc.data());
+                        const data = doc.data();
+                        data.docId = doc.id; // Store Firestore Document ID for deletion
+                        studentRecords.push(data);
                     });
                 } catch (e) {
                     console.error("Failed to fetch from Firebase, falling back to LocalStorage:", e);
@@ -551,7 +553,7 @@
             const sortedRecords = useFirebase ? studentRecords : [...studentRecords].reverse();
 
             container.innerHTML = sortedRecords.map(r => `
-                <div class="history-item">
+                <div class="history-item" style="position:relative; padding-right:40px;">
                     <div class="history-date">${r.date}</div>
                     <div class="history-type">${r.type}</div>
                     <div class="history-title">${r.title}</div>
@@ -560,10 +562,34 @@
                         <div style="font-size:0.75rem; text-align:right; margin-top:6px; color:${r.uploaded ? 'var(--secondary)' : 'var(--text-sub)'}">
                             ${r.uploaded ? '● 포털 등록완료' : '○ 포털 등록대기'}
                         </div>
-                    ` : ''}
+                        <button onclick="deleteFirebaseRecord('${r.docId}', '${sid}')" style="position:absolute;top:12px;right:12px;background:none;border:none;color:#ef4444;font-size:1.4rem;padding:5px;cursor:pointer;line-height:1;">&times;</button>
+                    ` : `
+                        <button onclick="deleteLocalRecord('${sid}', ${r.timestamp || 0})" style="position:absolute;top:12px;right:12px;background:none;border:none;color:#ef4444;font-size:1.4rem;padding:5px;cursor:pointer;line-height:1;">&times;</button>
+                    `}
                 </div>
             `).join('');
         }
+
+        window.deleteFirebaseRecord = async function(docId, sid) {
+            if (!confirm("이 상담 기록을 삭제하시겠습니까?")) return;
+            try {
+                await db.collection("counseling_records").doc(docId).delete();
+                alert("삭제되었습니다.");
+                renderHistory(sid);
+            } catch (e) {
+                console.error("Failed to delete record:", e);
+                alert("삭제 실패!");
+            }
+        };
+
+        window.deleteLocalRecord = function(sid, timestamp) {
+            if (!confirm("이 상담 기록을 삭제하시겠습니까?")) return;
+            if (records[sid]) {
+                records[sid] = records[sid].filter(r => r.timestamp !== timestamp);
+                localStorage.setItem('counseling_records', JSON.stringify(records));
+            }
+            renderHistory(sid);
+        };
 
         // Search and Filter logic
         function applyFilterAndSearch() {
