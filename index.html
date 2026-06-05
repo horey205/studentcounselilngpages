@@ -527,7 +527,6 @@
                 try {
                     const snapshot = await db.collection("counseling_records")
                         .where("studentId", "==", sid)
-                        .orderBy("timestamp", "desc")
                         .get();
                     
                     snapshot.forEach(doc => {
@@ -535,6 +534,8 @@
                         data.docId = doc.id; // Store Firestore Document ID for deletion
                         studentRecords.push(data);
                     });
+                    // Sort in memory by timestamp descending to avoid needing a composite index
+                    studentRecords.sort((a, b) => b.timestamp - a.timestamp);
                 } catch (e) {
                     console.error("Failed to fetch from Firebase, falling back to LocalStorage:", e);
                     studentRecords = records[sid] || [];
